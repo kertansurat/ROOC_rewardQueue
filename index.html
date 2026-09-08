@@ -56,9 +56,15 @@
                 </div>
             </div>
 
-            <button id="admin-toggle-btn" onclick="handleAdminToggle()" class="px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 text-slate-200 shadow-md">
-                <span id="admin-icon">🔒</span> <span id="admin-text">โหมดผู้ดู (Read-only)</span>
-            </button>
+            <div class="flex items-center gap-2">
+                <!-- ปุ่มบันทึกประจำวัน (แสดงเฉพาะตอนเปิด Admin) -->
+                <button id="global-save-btn" onclick="saveDailyData()" class="hidden px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-bold transition items-center gap-1.5 shadow-md active:scale-95">
+                    <span>💾</span> บันทึกข้อมูลประจำวัน
+                </button>
+                <button id="admin-toggle-btn" onclick="handleAdminToggle()" class="px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 text-slate-200 shadow-md">
+                    <span id="admin-icon">🔒</span> <span id="admin-text">โหมดผู้ดู (Read-only)</span>
+                </button>
+            </div>
         </div>
     </header>
 
@@ -66,35 +72,38 @@
 
         <!-- Control Panel สำหรับปรับโควต้า -->
         <div id="admin-panel-container" class="hidden bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
-            <h2 class="text-xs sm:text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <span>⚙️</span> ตั้งค่าจำนวนโควต้าของรางวัล
-            </h2>
+            <div class="flex justify-between items-center">
+                <h2 class="text-xs sm:text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <span>⚙️</span> ตั้งค่าจำนวนโควต้าของรางวัล
+                </h2>
+                <span id="last-saved-time" class="text-[11px] text-slate-400">ยังไม่มีการบันทึกข้อมูลวันนี้</span>
+            </div>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
                 <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                     <label class="block text-xs font-semibold text-slate-200 mb-1">🕊️ ขนขาว</label>
                     <div class="flex items-center gap-1">
-                        <input type="number" id="cfg-white-max" value="50" onchange="updateConfig()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white text-center font-bold">
+                        <input type="number" id="cfg-white-max" value="50" onchange="updateConfigLocal()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white text-center font-bold">
                         <span class="text-[10px] text-slate-400">หน้า</span>
                     </div>
                 </div>
                 <div class="bg-slate-950 p-2.5 rounded-xl border border-red-950/40">
                     <label class="block text-xs font-semibold text-red-400 mb-1">🪶 ขนแดง</label>
                     <div class="flex items-center gap-1">
-                        <input type="number" id="cfg-red-max" value="80" onchange="updateConfig()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-red-400 text-center font-bold">
+                        <input type="number" id="cfg-red-max" value="80" onchange="updateConfigLocal()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-red-400 text-center font-bold">
                         <span class="text-[10px] text-slate-400">หน้า</span>
                     </div>
                 </div>
                 <div class="bg-slate-950 p-2.5 rounded-xl border border-blue-950/40">
                     <label class="block text-xs font-semibold text-blue-400 mb-1">📘 สมุดการ์ด</label>
                     <div class="flex items-center gap-1">
-                        <input type="number" id="cfg-card-max" value="1" onchange="updateConfig()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-blue-400 text-center font-bold">
+                        <input type="number" id="cfg-card-max" value="1" onchange="updateConfigLocal()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-blue-400 text-center font-bold">
                         <span class="text-[10px] text-slate-400">เล่ม</span>
                     </div>
                 </div>
                 <div class="bg-slate-950 p-2.5 rounded-xl border border-amber-950/40">
                     <label class="block text-xs font-semibold text-amber-400 mb-1">📦 เศษทอง</label>
                     <div class="flex items-center gap-1">
-                        <input type="number" id="cfg-chest-max" value="1" onchange="updateConfig()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-amber-400 text-center font-bold">
+                        <input type="number" id="cfg-chest-max" value="1" onchange="updateConfigLocal()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-amber-400 text-center font-bold">
                         <span class="text-[10px] text-slate-400">ชิ้น</span>
                     </div>
                 </div>
@@ -117,7 +126,6 @@
                     <p class="text-[11px] sm:text-xs text-slate-400" id="current-tab-sub">แสดงรายชื่อคิว Rooc Reward</p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <!-- ปุ่มรีเซ็ตคิวเฉพาะหมวดนี้ (เปิด Popup) -->
                     <button id="admin-reset-tab-btn" onclick="openResetModal()" class="hidden bg-red-950 hover:bg-red-900 text-red-300 border border-red-800/60 text-xs font-semibold px-3 py-1.5 rounded-xl transition items-center gap-1 shadow">
                         <span>🔄</span> รีเซ็ตคิวหมวดนี้
                     </button>
@@ -175,6 +183,11 @@
         </div>
     </div>
 
+    <!-- Toast แจ้งเตือนการบันทึก -->
+    <div id="toast-notification" class="fixed bottom-5 right-5 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs sm:text-sm font-semibold transition-all duration-300 transform translate-y-20 opacity-0 z-50 flex items-center gap-2">
+        <span>✨</span> <span id="toast-msg">บันทึกข้อมูลเรียบร้อยแล้ว</span>
+    </div>
+
     <script>
         let isAdmin = false;
         let activeTab = 'white';
@@ -184,6 +197,7 @@
         let rewardQueues = { white: [], red: [], card: [], chest: [] };
         let editingIndex = -1;
         let isInitialized = false;
+        let lastUpdatedText = '';
 
         window.addEventListener('DOMContentLoaded', () => {
             const checkFirestore = setInterval(() => {
@@ -196,6 +210,26 @@
 
         async function initRoocRewardSystem() {
             try {
+                // 1. โหลดการตั้งค่าโควต้าส่วนกลางก่อน
+                const settingsRef = window.doc(window.db, 'rooc_rewards', 'settings');
+                const settingsSnap = await window.getDoc(settingsRef);
+                if (settingsSnap.exists()) {
+                    const sData = settingsSnap.data();
+                    if (sData.config) config = sData.config;
+                    if (sData.lastUpdated) lastUpdatedText = sData.lastUpdated;
+                }
+
+                // อัปเดตช่อง Input ตามค่าที่โหลดมา
+                document.getElementById('cfg-white-max').value = config.whiteMax;
+                document.getElementById('cfg-red-max').value = config.redMax;
+                document.getElementById('cfg-card-max').value = config.cardQuota;
+                document.getElementById('cfg-chest-max').value = config.chestQuota;
+                
+                if (lastUpdatedText) {
+                    document.getElementById('last-saved-time').innerText = `บันทึกล่าสุด: ${lastUpdatedText}`;
+                }
+
+                // 2. ฟังการเปลี่ยนแปลงของรายชื่อสมาชิกหลัก (players)
                 const playersRef = window.collection(window.db, 'players');
                 
                 window.onSnapshot(playersRef, async (snapshot) => {
@@ -213,22 +247,21 @@
 
                         if (rewardSnap.exists()) {
                             let savedQueue = rewardSnap.data().queue || [];
-                            
                             const savedMap = new Map(savedQueue.map(item => [item.id, item]));
                             let mergedQueue = [];
 
-                            // คงลำดับเดิมที่เคยจัดไว้เอาไว้
+                            // คงลำดับเดิมที่บันทึกไว้
                             savedQueue.forEach(item => {
                                 const foundMaster = masterPlayerList.find(mp => mp.id === item.id);
                                 if (foundMaster) {
                                     mergedQueue.push({
                                         ...item,
-                                        name: foundMaster.name // อัปเดตชื่อให้เป็นปัจจุบันเสมอ
+                                        name: foundMaster.name // อัปเดตชื่อให้ปัจจุบัน
                                     });
                                 }
                             });
 
-                            // เพิ่มผู้เล่นใหม่ที่เพิ่งเข้ามาในระบบหลัก แต่ยังไม่อยู่ในคิวนี้
+                            // เพิ่มผู้เล่นใหม่ที่เพิ่งเข้ามา
                             masterPlayerList.forEach(mp => {
                                 if (!savedMap.has(mp.id)) {
                                     mergedQueue.push({ 
@@ -262,14 +295,48 @@
             }
         }
 
-        async function saveCurrentQueueToFirestore() {
-            if (!isInitialized) return;
+        // ฟังก์ชันกดบันทึกข้อมูลและโควต้าประจำวันทั้งหมด
+        async function saveDailyData() {
+            if (!isAdmin) return;
             try {
-                const rewardDocRef = window.doc(window.db, 'rooc_rewards', activeTab);
-                await window.setDoc(rewardDocRef, { queue: rewardQueues[activeTab] }, { merge: true });
+                // อัปเดตค่าโควต้าจากช่อง input
+                config.whiteMax = parseInt(document.getElementById('cfg-white-max').value) || 50;
+                config.redMax = parseInt(document.getElementById('cfg-red-max').value) || 80;
+                config.cardQuota = parseInt(document.getElementById('cfg-card-max').value) || 1;
+                config.chestQuota = parseInt(document.getElementById('cfg-chest-max').value) || 1;
+
+                const now = new Date();
+                lastUpdatedText = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) + ' เวลา ' + now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+                // บันทึก Config และเวลาลง Firestore
+                const settingsRef = window.doc(window.db, 'rooc_rewards', 'settings');
+                await window.setDoc(settingsRef, { config, lastUpdated: lastUpdatedText });
+
+                // บันทึกคิวทุกหมวดลง Firestore พร้อมกัน
+                const categories = ['white', 'red', 'card', 'chest'];
+                for (const cat of categories) {
+                    const rewardDocRef = window.doc(window.db, 'rooc_rewards', cat);
+                    await window.setDoc(rewardDocRef, { queue: rewardQueues[cat] }, { merge: true });
+                }
+
+                document.getElementById('last-saved-time').innerText = `บันทึกล่าสุด: ${lastUpdatedText}`;
+                renderAll();
+                showToast("บันทึกข้อมูลและโควต้าประจำวันสำเร็จ! 🎉");
             } catch (e) {
-                console.error("Save Error:", e);
+                console.error("Save Daily Data Error:", e);
+                showToast("เกิดข้อผิดพลาดในการบันทึก", true);
             }
+        }
+
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast-notification');
+            const msgEl = document.getElementById('toast-msg');
+            msgEl.innerText = msg;
+            toast.className = `fixed bottom-5 right-5 px-4 py-2.5 rounded-xl shadow-2xl text-xs sm:text-sm font-semibold transition-all duration-300 transform z-50 flex items-center gap-2 ${isError ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
         }
 
         function handleAdminToggle() {
@@ -352,7 +419,11 @@
 
             rewardQueues[activeTab] = newQueue;
             renderAll();
-            await saveCurrentQueueToFirestore();
+            
+            // บันทึกลง Firestore ทันทีเมื่อรีเซ็ต
+            const rewardDocRef = window.doc(window.db, 'rooc_rewards', activeTab);
+            await window.setDoc(rewardDocRef, { queue: newQueue }, { merge: true });
+            showToast("รีเซ็ตคิวหมวดนี้สำเร็จ!");
         }
 
         function updateAdminUI() {
@@ -360,11 +431,16 @@
             document.getElementById('admin-icon').innerText = isAdmin ? '🔓' : '🔒';
             document.getElementById('admin-panel-container').className = isAdmin ? 'bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3' : 'hidden';
             
+            const globalSaveBtn = document.getElementById('global-save-btn');
             const resetBtn = document.getElementById('admin-reset-tab-btn');
             if (isAdmin) {
+                globalSaveBtn.classList.remove('hidden');
+                globalSaveBtn.classList.add('flex');
                 resetBtn.classList.remove('hidden');
                 resetBtn.classList.add('flex');
             } else {
+                globalSaveBtn.classList.add('hidden');
+                globalSaveBtn.classList.remove('flex');
                 resetBtn.classList.add('hidden');
                 resetBtn.classList.remove('flex');
             }
@@ -378,7 +454,7 @@
             renderAll();
         }
 
-        function updateConfig() {
+        function updateConfigLocal() {
             config.whiteMax = parseInt(document.getElementById('cfg-white-max').value) || 50;
             config.redMax = parseInt(document.getElementById('cfg-red-max').value) || 80;
             config.cardQuota = parseInt(document.getElementById('cfg-card-max').value) || 1;
@@ -391,7 +467,7 @@
             currentList[index].received = !currentList[index].received;
 
             renderAll();
-            await saveCurrentQueueToFirestore();
+            await saveQueueToFirestoreSilent();
         }
 
         async function completeQueue(index) {
@@ -405,7 +481,7 @@
             currentList.push(completedItem);
 
             renderAll();
-            await saveCurrentQueueToFirestore();
+            await saveQueueToFirestoreSilent();
         }
 
         async function cancelQueueAndRevert(index) {
@@ -422,7 +498,7 @@
             currentList.splice(targetPos, 0, item);
 
             renderAll();
-            await saveCurrentQueueToFirestore();
+            await saveQueueToFirestoreSilent();
         }
 
         async function moveQueue(index, direction) {
@@ -436,7 +512,7 @@
                 currentList.forEach((m, idx) => { m.originalIndex = idx; });
 
                 renderAll();
-                await saveCurrentQueueToFirestore();
+                await saveQueueToFirestoreSilent();
             }
         }
 
@@ -458,11 +534,21 @@
                     currentList.forEach((m, idx) => { m.originalIndex = idx; });
 
                     renderAll();
-                    await saveCurrentQueueToFirestore();
+                    await saveQueueToFirestoreSilent();
                 }
             }
             editingIndex = -1;
             renderAll();
+        }
+
+        async function saveQueueToFirestoreSilent() {
+            if (!isInitialized) return;
+            try {
+                const rewardDocRef = window.doc(window.db, 'rooc_rewards', activeTab);
+                await window.setDoc(rewardDocRef, { queue: rewardQueues[activeTab] }, { merge: true });
+            } catch (e) {
+                console.error("Save Silent Error:", e);
+            }
         }
 
         function copyCurrentQueueList() {
@@ -479,7 +565,6 @@
 
             let text = `📢 **รายชื่อคิวรับ ${titles[type]} (Rooc Reward)**\n`;
             
-            // หมวดที่ 1: รายชื่อถึงคิว
             text += `\n✨ **รายชื่อถึงคิวแล้ว (${activeList.length} ท่าน)**\n------------------------------\n`;
             activeList.forEach((item, index) => {
                 if (type === 'white') text += `${index + 1}. ${item.name} (หน้า ${index + 1})\n`;
@@ -487,7 +572,6 @@
                 else text += `${index + 1}. ${item.name}\n`;
             });
 
-            // หมวดที่ 2: รายชื่อรอคิวถัดไป (ไม่มีเลขหน้า)
             if (waitingList.length > 0) {
                 text += `\n⏳ **รายชื่อรอคิวถัดไป (${waitingList.length} ท่าน)**\n------------------------------\n`;
                 waitingList.forEach((item, index) => {
@@ -496,7 +580,7 @@
                 });
             }
 
-            navigator.clipboard.writeText(text).then(() => { alert(`คัดลอกรายชื่อทั้งหมดเรียบร้อยแล้ว!`); });
+            navigator.clipboard.writeText(text).then(() => { showToast("คัดลอกรายชื่อทั้งหมดเรียบร้อยแล้ว!"); });
         }
 
         function renderAll() {
