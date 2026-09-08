@@ -202,8 +202,8 @@
                     snapshot.forEach((docSnap) => {
                         const data = docSnap.data();
                         const pName = data.name || data.discordDisplayName || data.discordUsername || docSnap.id;
-                        const pJob = data.job ? ` (${data.job})` : '';
-                        masterPlayerList.push({ id: docSnap.id, name: `${pName}${pJob}` });
+                        // ตัดชื่ออาชีพออก เหลือเฉพาะชื่อหลัก
+                        masterPlayerList.push({ id: docSnap.id, name: pName });
                     });
 
                     const categories = ['white', 'red', 'card', 'chest'];
@@ -589,7 +589,6 @@
                             </button>
                         `;
                     } else {
-                        // จัดเรียงปุ่มใหม่ตามลำดับ: [ลูกศรขึ้น] [ลูกศรลง] [สลับ] [ข้าม / ยกเลิกคิว] [ยอมรับรางวัล]
                         let upBtn = `<button onclick="moveQueue(${index}, -1)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-sm text-slate-300 transition border border-slate-800">↑</button>`;
                         let downBtn = `<button onclick="moveQueue(${index}, 1)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-sm text-slate-300 transition border border-slate-800">↓</button>`;
                         let editBtn = `<button onclick="startEditing(${index})" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs transition border border-slate-700">🔄 สลับ</button>`;
