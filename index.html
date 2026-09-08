@@ -179,7 +179,7 @@
                         const pName = data.name || data.discordDisplayName || data.discordUsername || docSnap.id;
                         const pJob = data.job ? ` (${data.job})` : '';
 
-                        // รองรับสถานะการรับรางวัลแยกตามหมวดหมู่ (ถ้าไม่มีให้เป็น false)
+                        // รองรับสถานะการรับรางวัลแยกตามหมวดหมู่
                         const receivedMap = data.receivedMap || {};
 
                         tempArr.push({ 
@@ -190,7 +190,7 @@
                         });
                     });
 
-                    // เรียงลำดับตาม order
+                    // เรียงลำดับตาม order เสมอ
                     tempArr.sort((a, b) => a.order - b.order);
                     memberList = tempArr;
 
@@ -213,10 +213,11 @@
                 });
             } catch (e) {
                 console.error("เกิดข้อผิดพลาดในการบันทึกสถานะ:", e);
+                alert("บันทึกข้อมูลไม่สำเร็จ: " + e.message);
             }
         }
 
-        // บันทึกลำดับทั้งหมดลง Firestore
+        // บันทึกลำดับ order ทั้งหมดลง Firestore
         async function saveAllOrderToFirestore() {
             try {
                 for (let i = 0; i < memberList.length; i++) {
@@ -226,6 +227,7 @@
                 }
             } catch (e) {
                 console.error("เกิดข้อผิดพลาดในการบันทึกลำดับคิว:", e);
+                alert("บันทึกลำดับคิวไม่สำเร็จ: " + e.message);
             }
         }
 
@@ -312,7 +314,7 @@
             renderAll();
         }
 
-        // 🔄 รีเซ็ตสถานะรับรางวัลเฉพาะหมวดหมู่ปัจจุบัน (เมื่อทุกคนได้รางวัลครบในรอบนั้นแล้ว)
+        // 🔄 รีเซ็ตสถานะรับรางวัลเฉพาะหมวดหมู่ปัจจุบัน
         async function resetCurrentCategory() {
             const titles = { white: 'ขนขาว', red: 'ขนแดง', card: 'สมุดการ์ด', chest: 'เศษกล่องทอง' };
             if (confirm(`⚠️ คุณต้องการรีเซ็ตสถานะการรับรางวัลของหมวด "${titles[activeTab]}" ให้ทุกคนกลับเป็นยังไม่ได้ทั้งหมดหรือไม่?`)) {
@@ -327,7 +329,7 @@
             }
         }
 
-        // 🔄 ฟังก์ชันสลับสถานะรับรางวัล / ยกเลิก (กรณีแอดมินกดผิด)
+        // 🔄 ฟังก์ชันสลับสถานะรับรางวัล / ยกเลิก
         async function toggleReceivedStatus(index) {
             const item = memberList[index];
             if (!item.receivedMap) item.receivedMap = {};
@@ -337,20 +339,21 @@
             await updatePlayerReceivedFirestore(index);
         }
 
-        // ✅ ฟังก์ชันรันคิว: ย้ายคนนี้ไปต่อท้ายสุด และทำเครื่องหมายว่าได้รับแล้วในหมวดนี้
+        // ✅ ฟังก์ชันรันคิว: ย้ายคนนี้ไปต่อท้ายสุด และทำเครื่องหมายว่าได้รับแล้วในหมวดนี้ทันที
         async function completeQueue(index) {
             const memberName = memberList[index].name;
             if (confirm(`ยืนยันการให้รางวัลแก่ "${memberName}" ?\n(รายชื่อนี้จะถูกบันทึกว่าได้รับแล้วและย้ายไปต่อท้ายสุดของคิว)`)) {
                 if (!memberList[index].receivedMap) memberList[index].receivedMap = {};
                 memberList[index].receivedMap[activeTab] = true;
 
-                // ย้ายไปต่อท้ายสุด
+                // สลับตำแหน่งในอาเรย์ ย้ายตัวที่กดไปไว้ท้ายสุด
                 const completedItem = memberList.splice(index, 1)[0];
                 memberList.push(completedItem);
                 
                 renderAll();
+                
+                // บันทึกลำดับ order ใหม่ทั้งหมดลง Firestore และบันทึกสถานะ receivedMap ของตัวที่ถูกย้าย
                 await saveAllOrderToFirestore();
-                // บันทึกสถานะ receivedMap ของตัวที่ถูกย้ายไปท้ายด้วย
                 await updatePlayerReceivedFirestore(memberList.length - 1);
             }
         }
@@ -373,7 +376,7 @@
             renderAll();
         }
 
-        // กดยอมรับการเปลี่ยนชื่อจาก Dropdown
+        // กดยอมรับการเปลี่ยนชื่อจาก Dropdown (สำหรับเลือกสลับตำแหน่งโดยตรง)
         async function saveEditing(index) {
             const selectEl = document.getElementById(`dropdown-select-${index}`);
             if (selectEl) {
@@ -503,7 +506,6 @@
                             </button>
                         `;
                     } else {
-                        // ปุ่มรับรางวัล / หรือสลับสถานะกลับเป็นยังไม่ได้
                         let mainBtnText = hasReceived ? '↩️ ยกเลิกสถานะ' : '✅ รับรางวัล';
                         let mainBtnAction = hasReceived ? `toggleReceivedStatus(${index})` : `completeQueue(${index})`;
                         let mainBtnClass = hasReceived 
