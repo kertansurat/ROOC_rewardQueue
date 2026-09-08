@@ -19,7 +19,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Firebase Config ของคุณ bellona-gvg
+        // Firebase Config สำหรับ bellona-gvg
         const firebaseConfig = {
             apiKey: "AIzaSyBv_QQ_O8SE88WFTwro2hJJYGDRA4Jdds8",
             authDomain: "bellona-gvg.firebaseapp.com",
@@ -164,36 +164,39 @@
         });
 
         // READ ONLY: ดึงเฉพาะรายชื่อผู้เล่นจาก Collection 'players' ใน Firestore
-        // READ ONLY: ดึงเฉพาะรายชื่อผู้เล่นจาก Collection 'players' ใน Firestore
-function listenToPlayersCollection() {
-    const playersRef = window.collection(window.db, 'players');
-    
-    window.onSnapshot(playersRef, (snapshot) => {
-        memberList = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            
-            // ดึงชื่อจากฟิลด์ name ตามโครงสร้างจริงใน Firestore
-            const playerName = data.name || data.discordDisplayName || doc.id;
-            const playerJob = data.job ? ` (${data.job})` : '';
+        function listenToPlayersCollection() {
+            try {
+                const playersRef = window.collection(window.db, 'players');
+                
+                window.onSnapshot(playersRef, (snapshot) => {
+                    memberList = [];
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        
+                        // ดึงชื่อและอาชีพตามโครงสร้างจริงใน Firestore (จากภาพประกอบ)
+                        const pName = data.name || data.discordDisplayName || data.discordUsername || doc.id;
+                        const pJob = data.job ? ` (${data.job})` : '';
 
-            memberList.push({ 
-                id: doc.id, 
-                name: `${playerName}${playerJob}` 
-            });
-        });
+                        memberList.push({ 
+                            id: doc.id, 
+                            name: `${pName}${pJob}` 
+                        });
+                    });
 
-        console.log("ดึงรายชื่อสำเร็จ:", memberList);
-        renderAll();
-    }, (error) => {
-        console.error("Firestore Read Error:", error);
-        document.getElementById('active-queue-list').innerHTML = `
-            <div class="text-center text-red-400 py-8">
-                ไม่สามารถอ่านข้อมูลได้: ${error.message}<br>
-                <span class="text-xs text-slate-500">กรุณาตรวจสอบ Firestore Rules ใน Firebase Console</span>
-            </div>`;
-    });
-}
+                    console.log("ดึงรายชื่อสำเร็จ จำนวน:", memberList.length, memberList);
+                    renderAll();
+                }, (error) => {
+                    console.error("Firestore Read Error:", error);
+                    document.getElementById('active-queue-list').innerHTML = `
+                        <div class="text-center text-red-400 py-8">
+                            ไม่สามารถอ่านข้อมูลได้: ${error.message}<br>
+                            <span class="text-xs text-slate-500">กรุณาตรวจสอบ Firestore Rules ใน Firebase Console</span>
+                        </div>`;
+                });
+            } catch (err) {
+                console.error("Init Error:", err);
+            }
+        }
 
         function handleAdminToggle() {
             if (isAdmin) {
@@ -207,43 +210,45 @@ function listenToPlayersCollection() {
         }
 
         // ยืนยันรหัสผ่านผ่าน Vercel API
-async function verifyAdminPassword(e) {
-    e.preventDefault();
-    const passInput = document.getElementById('admin-pass-input').value;
-    const errorMsg = document.getElementById('admin-error-msg');
-    const submitBtn = document.getElementById('admin-submit-btn');
+        async function verifyAdminPassword(e) {
+            e.preventDefault();
+            const passInput = document.getElementById('admin-pass-input').value;
+            const errorMsg = document.getElementById('admin-error-msg');
+            const submitBtn = document.getElementById('admin-submit-btn');
 
-    errorMsg.classList.add('hidden');
-    submitBtn.innerText = 'กำลังตรวจสอบ...';
-    submitBtn.disabled = true;
+            errorMsg.classList.add('hidden');
+            submitBtn.innerText = 'กำลังตรวจสอบ...';
+            submitBtn.disabled = true;
 
-    try {
-        const res = await fetch('/api/verify-admin', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: passInput })
-        });
+            try {
+                const res = await fetch('/api/verify-admin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: passInput })
+                });
 
-        const data = await res.json();
+                const data = await res.json();
 
-        if (res.ok && data.success) {
-            isAdmin = true;
-            closeAdminModal();
-            updateAdminUI();
-        } else {
-            errorMsg.innerText = data.message || 'รหัสผ่านไม่ถูกต้อง!';
-            errorMsg.classList.remove('hidden');
+                if (res.ok && data.success) {
+                    isAdmin = true;
+                    closeAdminModal();
+                    updateAdminUI();
+                } else {
+                    errorMsg.innerText = data.message || 'รหัสผ่านไม่ถูกต้อง!';
+                    errorMsg.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorMsg.innerText = 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์';
+                errorMsg.classList.remove('hidden');
+            } finally {
+                submitBtn.innerText = 'ยืนยัน';
+                submitBtn.disabled = false;
+            }
         }
-    } catch (err) {
-        errorMsg.innerText = 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์';
-        errorMsg.classList.remove('hidden');
-    } finally {
-        submitBtn.innerText = 'ยืนยัน';
-        submitBtn.disabled = false;
-    }
-}
 
-        function closeAdminModal() { document.getElementById('admin-modal').classList.add('hidden'); }
+        function closeAdminModal() { 
+            document.getElementById('admin-modal').classList.add('hidden'); 
+        }
 
         function updateAdminUI() {
             document.getElementById('admin-text').innerText = isAdmin ? 'โหมดปรับแต่ง (Admin)' : 'โหมดผู้ดู (Read-only)';
