@@ -62,18 +62,11 @@
 
     <main class="max-w-5xl mx-auto px-3 sm:px-6 mt-4 space-y-4">
 
-        <!-- Control Panel สำหรับปรับโควต้าและรีเซ็ตคิวรอบใหญ่ -->
+        <!-- Control Panel สำหรับปรับโควต้า -->
         <div id="admin-panel-container" class="hidden bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
-            <div class="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-2">
-                <h2 class="text-xs sm:text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                    <span>⚙️</span> ตั้งค่าจำนวนโควต้าของรางวัลและการจัดการคิว
-                </h2>
-                <!-- ปุ่มรีเซ็ตคิวรอบใหญ่ (เมื่อทุกคนได้รางวัลครบแล้ว) -->
-                <button onclick="resetAllQueueStatus()" class="bg-red-950 hover:bg-red-900 text-red-300 border border-red-800/60 text-xs font-semibold px-3 py-1.5 rounded-xl transition flex items-center gap-1 shadow">
-                    <span>🔄</span> รีเซ็ตสถานะรับรางวัลทั้งหมด (เริ่มรอบใหม่)
-                </button>
-            </div>
-            
+            <h2 class="text-xs sm:text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <span>⚙️</span> ตั้งค่าจำนวนโควต้าของรางวัล
+            </h2>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
                 <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                     <label class="block text-xs font-semibold text-slate-200 mb-1">🕊️ ขนขาว</label>
@@ -121,9 +114,15 @@
                     <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2" id="current-tab-title">🕊️ คิวขนขาว</h2>
                     <p class="text-[11px] sm:text-xs text-slate-400" id="current-tab-sub">แสดงรายชื่อคิว</p>
                 </div>
-                <button onclick="copyCurrentQueueList()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl transition flex items-center gap-1.5 shadow-md active:scale-95">
-                    <span>📋</span> คัดลอกรายชื่อถึงคิว
-                </button>
+                <div class="flex items-center gap-2">
+                    <!-- ปุ่มรีเซ็ตคิวเฉพาะหมวดนี้ (แสดงเฉพาะโหมด Admin) -->
+                    <button id="admin-reset-tab-btn" onclick="resetCurrentCategory()" class="hidden bg-red-950 hover:bg-red-900 text-red-300 border border-red-800/60 text-xs font-semibold px-3 py-1.5 rounded-xl transition items-center gap-1 shadow">
+                        <span>🔄</span> รีเซ็ตคิวหมวดนี้
+                    </button>
+                    <button onclick="copyCurrentQueueList()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl transition flex items-center gap-1.5 shadow-md active:scale-95">
+                        <span>📋</span> คัดลอกรายชื่อถึงคิว
+                    </button>
+                </div>
             </div>
 
             <!-- รายชื่อคิว -->
@@ -180,11 +179,14 @@
                         const pName = data.name || data.discordDisplayName || data.discordUsername || docSnap.id;
                         const pJob = data.job ? ` (${data.job})` : '';
 
+                        // รองรับสถานะการรับรางวัลแยกตามหมวดหมู่ (ถ้าไม่มีให้เป็น false)
+                        const receivedMap = data.receivedMap || {};
+
                         tempArr.push({ 
                             id: docSnap.id, 
                             name: `${pName}${pJob}`,
                             order: typeof data.order === 'number' ? data.order : 999,
-                            received: data.received === true // สถานะการรับรางวัล
+                            receivedMap: receivedMap 
                         });
                     });
 
@@ -201,17 +203,16 @@
             }
         }
 
-        // อัปเดตข้อมูลผู้เล่นรายคนลง Firestore
-        async function updatePlayerFirestore(index) {
+        // บันทึกสถานะรับรางวัลเฉพาะคนลง Firestore
+        async function updatePlayerReceivedFirestore(index) {
             try {
                 const item = memberList[index];
                 const docRef = window.doc(window.db, "players", item.id);
                 await window.updateDoc(docRef, { 
-                    order: item.order,
-                    received: item.received 
+                    receivedMap: item.receivedMap 
                 });
             } catch (e) {
-                console.error("เกิดข้อผิดพลาดในการบันทึกข้อมูล:", e);
+                console.error("เกิดข้อผิดพลาดในการบันทึกสถานะ:", e);
             }
         }
 
@@ -284,6 +285,16 @@
             document.getElementById('admin-text').innerText = isAdmin ? 'โหมดปรับแต่ง (Admin)' : 'โหมดผู้ดู (Read-only)';
             document.getElementById('admin-icon').innerText = isAdmin ? '🔓' : '🔒';
             document.getElementById('admin-panel-container').className = isAdmin ? 'bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3' : 'hidden';
+            
+            const resetBtn = document.getElementById('admin-reset-tab-btn');
+            if (isAdmin) {
+                resetBtn.classList.remove('hidden');
+                resetBtn.classList.add('flex');
+            } else {
+                resetBtn.classList.add('hidden');
+                resetBtn.classList.remove('flex');
+            }
+
             renderAll();
         }
 
@@ -301,38 +312,46 @@
             renderAll();
         }
 
-        // 🔄 ฟังก์ชันรีเซ็ตสถานะรับรางวัลทั้งหมด (เมื่อทุกคนได้รางวัลครบทุกรอบแล้ว เริ่มรอบใหม่)
-        async function resetAllQueueStatus() {
-            if (confirm('⚠️ คุณต้องการรีเซ็ตสถานะการรับรางวัลของทุกคนให้กลับเป็น "ยังไม่ได้รับ" ทั้งหมดหรือไม่?')) {
+        // 🔄 รีเซ็ตสถานะรับรางวัลเฉพาะหมวดหมู่ปัจจุบัน (เมื่อทุกคนได้รางวัลครบในรอบนั้นแล้ว)
+        async function resetCurrentCategory() {
+            const titles = { white: 'ขนขาว', red: 'ขนแดง', card: 'สมุดการ์ด', chest: 'เศษกล่องทอง' };
+            if (confirm(`⚠️ คุณต้องการรีเซ็ตสถานะการรับรางวัลของหมวด "${titles[activeTab]}" ให้ทุกคนกลับเป็นยังไม่ได้ทั้งหมดหรือไม่?`)) {
                 for (let i = 0; i < memberList.length; i++) {
-                    memberList[i].received = false;
+                    if (!memberList[i].receivedMap) memberList[i].receivedMap = {};
+                    memberList[i].receivedMap[activeTab] = false;
                     const docRef = window.doc(window.db, "players", memberList[i].id);
-                    await window.updateDoc(docRef, { received: false });
+                    await window.updateDoc(docRef, { receivedMap: memberList[i].receivedMap });
                 }
                 renderAll();
-                alert('รีเซ็ตสถานะทั้งหมดสำเร็จ เริ่มรอบใหม่เรียบร้อย!');
+                alert(`รีเซ็ตสถานะหมวด ${titles[activeTab]} สำเร็จ!`);
             }
         }
 
-        // 🔄 ฟังก์ชันสลับสถานะรับรางวัล / ยกเลิกกรณีแอดมินกดผิด
+        // 🔄 ฟังก์ชันสลับสถานะรับรางวัล / ยกเลิก (กรณีแอดมินกดผิด)
         async function toggleReceivedStatus(index) {
             const item = memberList[index];
-            item.received = !item.received; // สลับสถานะ (ถ้าได้แล้ว เป็นยังไม่ได้ / ถ้ายัง เป็นได้แล้ว)
-            
+            if (!item.receivedMap) item.receivedMap = {};
+            item.receivedMap[activeTab] = !item.receivedMap[activeTab];
+
             renderAll();
-            await updatePlayerFirestore(index);
+            await updatePlayerReceivedFirestore(index);
         }
 
-        // กดปุ่มรันคิวปกติ: ย้ายคนนี้ไปต่อท้ายสุด
+        // ✅ ฟังก์ชันรันคิว: ย้ายคนนี้ไปต่อท้ายสุด และทำเครื่องหมายว่าได้รับแล้วในหมวดนี้
         async function completeQueue(index) {
             const memberName = memberList[index].name;
-            if (confirm(`ยืนยันการให้รางวัลแก่ "${memberName}" ?\n(รายชื่อนี้จะถูกย้ายไปต่อท้ายสุดของคิว)`)) {
-                memberList[index].received = true; // ตั้งค่าว่าได้รับแล้ว
+            if (confirm(`ยืนยันการให้รางวัลแก่ "${memberName}" ?\n(รายชื่อนี้จะถูกบันทึกว่าได้รับแล้วและย้ายไปต่อท้ายสุดของคิว)`)) {
+                if (!memberList[index].receivedMap) memberList[index].receivedMap = {};
+                memberList[index].receivedMap[activeTab] = true;
+
+                // ย้ายไปต่อท้ายสุด
                 const completedItem = memberList.splice(index, 1)[0];
-                memberList.push(completedItem); // ย้ายไปต่อท้าย
+                memberList.push(completedItem);
                 
                 renderAll();
                 await saveAllOrderToFirestore();
+                // บันทึกสถานะ receivedMap ของตัวที่ถูกย้ายไปท้ายด้วย
+                await updatePlayerReceivedFirestore(memberList.length - 1);
             }
         }
 
@@ -431,6 +450,7 @@
                 const isCurrentQueue = index < quotaMax;
                 const pageNum = index + 1;
                 const isEditingThis = (editingIndex === index);
+                const hasReceived = item.receivedMap && item.receivedMap[type] === true;
 
                 let pageBadgeHTML = '';
                 if (type === 'white') {
@@ -442,7 +462,7 @@
                 }
 
                 card.className = `p-3 sm:p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition ${
-                    item.received 
+                    hasReceived 
                         ? 'bg-slate-900/40 border-slate-800/50 opacity-60' 
                         : (isCurrentQueue ? 'bg-emerald-950/25 border-emerald-500/40 shadow-sm' : 'bg-slate-950/80 border-slate-800')
                 }`;
@@ -460,7 +480,7 @@
                     `;
                 } else {
                     let statusBadge = '';
-                    if (item.received) {
+                    if (hasReceived) {
                         statusBadge = `<span class="text-[10px] font-normal bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">ได้รับรางวัลแล้ว (รอบนี้)</span>`;
                     } else if (isCurrentQueue) {
                         statusBadge = `<span class="text-[10px] font-normal bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/40">ถึงคิวแล้ว</span>`;
@@ -468,7 +488,7 @@
 
                     nameAreaHTML = `
                         <div class="text-sm sm:text-base font-semibold text-slate-100 break-all flex items-center gap-2 flex-wrap">
-                            <span class="${item.received ? 'line-through text-slate-400' : ''}">${item.name}</span>
+                            <span class="${hasReceived ? 'line-through text-slate-400' : ''}">${item.name}</span>
                             ${statusBadge}
                         </div>
                     `;
@@ -483,17 +503,17 @@
                             </button>
                         `;
                     } else {
-                        // เพิ่มปุ่มแก้สถานะ (กรณีแอดมินกดผิด อยากเปลี่ยนสถานะกลับเป็นยังไม่ได้รับ หรือติ๊กรับเอง)
-                        let toggleBtnText = item.received ? '↩️ ยังไม่ได้รับ' : '✅ รับรางวัล';
-                        let toggleBtnClass = item.received 
+                        // ปุ่มรับรางวัล / หรือสลับสถานะกลับเป็นยังไม่ได้
+                        let mainBtnText = hasReceived ? '↩️ ยกเลิกสถานะ' : '✅ รับรางวัล';
+                        let mainBtnAction = hasReceived ? `toggleReceivedStatus(${index})` : `completeQueue(${index})`;
+                        let mainBtnClass = hasReceived 
                             ? 'bg-amber-800/80 hover:bg-amber-700 text-amber-200 border-amber-700' 
                             : 'bg-emerald-700 hover:bg-emerald-600 text-white border-emerald-600';
 
                         adminActionButtons = `
-                            <button onclick="${item.received ? `toggleReceivedStatus(${index})` : `completeQueue(${index})`}" class="px-2.5 py-1 ${toggleBtnClass} rounded-lg text-xs font-bold transition border flex items-center gap-1 shadow">
-                                ${toggleBtnText}
+                            <button onclick="${mainBtnAction}" class="px-2.5 py-1 ${mainBtnClass} rounded-lg text-xs font-bold transition border flex items-center gap-1 shadow">
+                                ${mainBtnText}
                             </button>
-                            ${item.received ? `<button onclick="toggleReceivedStatus(${index})" title="สลับสถานะกลับ" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs border border-slate-700">แก้สถานะ</button>` : ''}
                             <button onclick="startEditing(${index})" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs transition border border-slate-700">
                                 ✏️ แก้ไข
                             </button>
