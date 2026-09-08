@@ -17,9 +17,8 @@
     <!-- Firebase SDK (v10 Cloud Firestore) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Firebase Config สำหรับ bellona-gvg
         const firebaseConfig = {
             apiKey: "AIzaSyBv_QQ_O8SE88WFTwro2hJJYGDRA4Jdds8",
             authDomain: "bellona-gvg.firebaseapp.com",
@@ -30,13 +29,14 @@
             measurementId: "G-Q2BHJJJKRP"
         };
 
-        // Initialize Firebase & Firestore
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
         window.db = db;
         window.collection = collection;
         window.onSnapshot = onSnapshot;
+        window.doc = doc;
+        window.updateDoc = updateDoc;
     </script>
 </head>
 <body class="min-h-screen pb-16">
@@ -54,7 +54,6 @@
                 </div>
             </div>
 
-            <!-- ปุ่มเปลี่ยนเข้าโหมด Admin -->
             <button id="admin-toggle-btn" onclick="handleAdminToggle()" class="px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 text-slate-200 shadow-md">
                 <span id="admin-icon">🔒</span> <span id="admin-text">โหมดผู้ดู (Read-only)</span>
             </button>
@@ -63,7 +62,7 @@
 
     <main class="max-w-5xl mx-auto px-3 sm:px-6 mt-4 space-y-4">
 
-        <!-- Control Panel สำหรับปรับโควต้า (แสดงเฉพาะ Admin) -->
+        <!-- Control Panel สำหรับปรับโควต้า -->
         <div id="admin-panel-container" class="hidden bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl">
             <h2 class="text-xs sm:text-sm font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <span>⚙️</span> ตั้งค่าจำนวนโควต้าของรางวัล
@@ -128,7 +127,7 @@
 
     </main>
 
-    <!-- Modal ใส่รหัส Admin (ยืนยันผ่าน Vercel API) -->
+    <!-- Modal ใส่รหัส Admin -->
     <div id="admin-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-4">
             <div class="text-center">
@@ -152,8 +151,8 @@
 
         let config = { whiteMax: 50, redMax: 80, cardQuota: 1, chestQuota: 1 };
         let memberList = [];
+        let editingIndex = -1;
 
-        // รอจนกว่า Firestore SDK จะพร้อมทำงาน
         window.addEventListener('DOMContentLoaded', () => {
             const checkFirestore = setInterval(() => {
                 if (window.db) {
@@ -163,44 +162,53 @@
             }, 100);
         });
 
-        // READ ONLY: ดึงเฉพาะรายชื่อผู้เล่นจาก Collection 'players' ใน Firestore
         function listenToPlayersCollection() {
             try {
                 const playersRef = window.collection(window.db, 'players');
                 
                 window.onSnapshot(playersRef, (snapshot) => {
-                    memberList = [];
-                    snapshot.forEach((doc) => {
-                        const data = doc.data();
-                        
-                        // ดึงชื่อและอาชีพตามโครงสร้างจริงใน Firestore (จากภาพประกอบ)
-                        const pName = data.name || data.discordDisplayName || data.discordUsername || doc.id;
+                    let tempArr = [];
+                    snapshot.forEach((docSnap) => {
+                        const data = docSnap.data();
+                        const pName = data.name || data.discordDisplayName || data.discordUsername || docSnap.id;
                         const pJob = data.job ? ` (${data.job})` : '';
 
-                        memberList.push({ 
-                            id: doc.id, 
-                            name: `${pName}${pJob}` 
+                        tempArr.push({ 
+                            id: docSnap.id, 
+                            name: `${pName}${pJob}`,
+                            order: typeof data.order === 'number' ? data.order : 999
                         });
                     });
 
-                    console.log("ดึงรายชื่อสำเร็จ จำนวน:", memberList.length, memberList);
+                    // เรียงลำดับตามออเดอร์ที่บันทึกไว้ใน Firestore
+                    tempArr.sort((a, b) => a.order - b.order);
+                    memberList = tempArr;
+
                     renderAll();
                 }, (error) => {
                     console.error("Firestore Read Error:", error);
-                    document.getElementById('active-queue-list').innerHTML = `
-                        <div class="text-center text-red-400 py-8">
-                            ไม่สามารถอ่านข้อมูลได้: ${error.message}<br>
-                            <span class="text-xs text-slate-500">กรุณาตรวจสอบ Firestore Rules ใน Firebase Console</span>
-                        </div>`;
                 });
             } catch (err) {
                 console.error("Init Error:", err);
             }
         }
 
+        // ฟังก์ชันช่วยอัปเดตลำดับลง Firebase Firestore
+        async function saveOrderToFirestore(itemsToUpdate) {
+            try {
+                for (const item of itemsToUpdate) {
+                    const docRef = window.doc(window.db, "players", item.id);
+                    await window.updateDoc(docRef, { order: item.order });
+                }
+            } catch (e) {
+                console.error("เกิดข้อผิดพลาดในการบันทึกลำดับคิว:", e);
+            }
+        }
+
         function handleAdminToggle() {
             if (isAdmin) {
                 isAdmin = false;
+                editingIndex = -1;
                 updateAdminUI();
             } else {
                 document.getElementById('admin-pass-input').value = '';
@@ -209,7 +217,6 @@
             }
         }
 
-        // ยืนยันรหัสผ่านผ่าน Vercel API
         async function verifyAdminPassword(e) {
             e.preventDefault();
             const passInput = document.getElementById('admin-pass-input').value;
@@ -259,6 +266,7 @@
 
         function switchTab(type) {
             activeTab = type;
+            editingIndex = -1;
             renderAll();
         }
 
@@ -270,14 +278,60 @@
             renderAll();
         }
 
-        function moveQueue(index, direction) {
+        // กดปุ่มขึ้น-ลง เพื่อสลับคิว และบันทึกลง Firestore
+        async function moveQueue(index, direction) {
             const newIndex = index + direction;
             if (newIndex >= 0 && newIndex < memberList.length) {
+                // สลับตำแหน่งในอาเรย์
                 const temp = memberList[index];
                 memberList[index] = memberList[newIndex];
                 memberList[newIndex] = temp;
+
+                // กำหนดลำดับ order ใหม่
+                memberList[index].order = index;
+                memberList[newIndex].order = newIndex;
+
                 renderAll();
+
+                // บันทึกลง Firestore
+                await saveOrderToFirestore([
+                    { id: memberList[index].id, order: index },
+                    { id: memberList[newIndex].id, order: newIndex }
+                ]);
             }
+        }
+
+        function startEditing(index) {
+            editingIndex = index;
+            renderAll();
+        }
+
+        // กดยอมรับการเปลี่ยนชื่อจาก Dropdown และบันทึกลง Firestore
+        async function saveEditing(index) {
+            const selectEl = document.getElementById(`dropdown-select-${index}`);
+            if (selectEl) {
+                const selectedTargetIndex = parseInt(selectEl.value);
+                if (selectedTargetIndex !== index) {
+                    // สลับตำแหน่ง
+                    const temp = memberList[index];
+                    memberList[index] = memberList[selectedTargetIndex];
+                    memberList[selectedTargetIndex] = temp;
+
+                    // อัปเดต order ใหม่
+                    memberList[index].order = index;
+                    memberList[selectedTargetIndex].order = selectedTargetIndex;
+
+                    renderAll();
+
+                    // บันทึกลง Firestore
+                    await saveOrderToFirestore([
+                        { id: memberList[index].id, order: index },
+                        { id: memberList[selectedTargetIndex].id, order: selectedTargetIndex }
+                    ]);
+                }
+            }
+            editingIndex = -1;
+            renderAll();
         }
 
         function copyCurrentQueueList() {
@@ -338,6 +392,7 @@
                 const card = document.createElement('div');
                 const isCurrentQueue = index < quotaMax;
                 const pageNum = index + 1;
+                const isEditingThis = (editingIndex === index);
 
                 let pageBadgeHTML = '';
                 if (type === 'white') {
@@ -354,21 +409,56 @@
                         : 'bg-slate-950/80 border-slate-800'
                 }`;
 
+                let nameAreaHTML = '';
+                if (isEditingThis && isAdmin) {
+                    let optionsHTML = '';
+                    memberList.forEach((m, idx) => {
+                        optionsHTML += `<option value="${idx}" ${idx === index ? 'selected' : ''}>${m.name}</option>`;
+                    });
+                    nameAreaHTML = `
+                        <select id="dropdown-select-${index}" class="bg-slate-900 border border-blue-500 text-white text-sm rounded-lg px-2.5 py-1.5 focus:outline-none max-w-xs sm:max-w-md">
+                            ${optionsHTML}
+                        </select>
+                    `;
+                } else {
+                    nameAreaHTML = `
+                        <div class="text-sm sm:text-base font-semibold text-slate-100 break-all flex items-center gap-2 flex-wrap">
+                            <span>${item.name}</span>
+                            ${isCurrentQueue ? '<span class="text-[10px] font-normal bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/40">ถึงคิวแล้ว</span>' : ''}
+                        </div>
+                    `;
+                }
+
+                let adminActionButtons = '';
+                if (isAdmin) {
+                    if (isEditingThis) {
+                        adminActionButtons = `
+                            <button onclick="saveEditing(${index})" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow">
+                                ✓ ยอมรับ
+                            </button>
+                        `;
+                    } else {
+                        adminActionButtons = `
+                            <button onclick="startEditing(${index})" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs transition border border-slate-700">
+                                ✏️ แก้ไข
+                            </button>
+                            <button onclick="moveQueue(${index}, -1)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-sm text-slate-300 transition border border-slate-800">↑</button>
+                            <button onclick="moveQueue(${index}, 1)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-sm text-slate-300 transition border border-slate-800">↓</button>
+                        `;
+                    }
+                }
+
                 card.innerHTML = `
                     <div class="flex items-center gap-3 min-w-0 flex-1">
                         ${pageBadgeHTML}
                         <div class="min-w-0 flex-1">
-                            <div class="text-sm sm:text-base font-semibold text-slate-100 break-all flex items-center gap-2 flex-wrap">
-                                <span>${item.name}</span>
-                                ${isCurrentQueue ? '<span class="text-[10px] font-normal bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/40">ถึงคิวแล้ว</span>' : ''}
-                            </div>
+                            ${nameAreaHTML}
                         </div>
                     </div>
 
                     ${isAdmin ? `
                         <div class="flex items-center gap-1.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/80 justify-end shrink-0">
-                            <button onclick="moveQueue(${index}, -1)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-sm text-slate-300 transition">↑</button>
-                            <button onclick="moveQueue(${index}, 1)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-sm text-slate-300 transition">↓</button>
+                            ${adminActionButtons}
                         </div>
                     ` : ''}
                 `;
