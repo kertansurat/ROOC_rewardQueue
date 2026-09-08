@@ -183,6 +183,7 @@
         let masterPlayerList = [];
         let rewardQueues = { white: [], red: [], card: [], chest: [] };
         let editingIndex = -1;
+        let isInitialized = false;
 
         window.addEventListener('DOMContentLoaded', () => {
             const checkFirestore = setInterval(() => {
@@ -213,28 +214,33 @@
                         if (rewardSnap.exists()) {
                             let savedQueue = rewardSnap.data().queue || [];
                             
-                            const existingIds = new Set(savedQueue.map(item => item.id));
-                            masterPlayerList.forEach(mp => {
-                                if (!existingIds.has(mp.id)) {
-                                    savedQueue.push({ 
-                                        id: mp.id, 
-                                        name: mp.name, 
-                                        received: false, 
-                                        originalIndex: savedQueue.length 
+                            const savedMap = new Map(savedQueue.map(item => [item.id, item]));
+                            let mergedQueue = [];
+
+                            // คงลำดับเดิมที่เคยจัดไว้เอาไว้
+                            savedQueue.forEach(item => {
+                                const foundMaster = masterPlayerList.find(mp => mp.id === item.id);
+                                if (foundMaster) {
+                                    mergedQueue.push({
+                                        ...item,
+                                        name: foundMaster.name // อัปเดตชื่อให้เป็นปัจจุบันเสมอ
                                     });
                                 }
                             });
 
-                            const masterIds = new Set(masterPlayerList.map(mp => mp.id));
-                            savedQueue = savedQueue.filter(item => masterIds.has(item.id));
-
-                            const nameMap = new Map(masterPlayerList.map(mp => [mp.id, mp.name]));
-                            savedQueue.forEach(item => {
-                                if (nameMap.has(item.id)) item.name = nameMap.get(item.id);
-                                if (typeof item.originalIndex !== 'number') item.originalIndex = 0;
+                            // เพิ่มผู้เล่นใหม่ที่เพิ่งเข้ามาในระบบหลัก แต่ยังไม่อยู่ในคิวนี้
+                            masterPlayerList.forEach(mp => {
+                                if (!savedMap.has(mp.id)) {
+                                    mergedQueue.push({ 
+                                        id: mp.id, 
+                                        name: mp.name, 
+                                        received: false, 
+                                        originalIndex: mergedQueue.length 
+                                    });
+                                }
                             });
 
-                            rewardQueues[cat] = savedQueue;
+                            rewardQueues[cat] = mergedQueue;
                         } else {
                             const initialQueue = masterPlayerList.map((mp, idx) => ({ 
                                 id: mp.id, 
@@ -247,6 +253,7 @@
                         }
                     }
 
+                    isInitialized = true;
                     renderAll();
                 });
 
@@ -256,9 +263,10 @@
         }
 
         async function saveCurrentQueueToFirestore() {
+            if (!isInitialized) return;
             try {
                 const rewardDocRef = window.doc(window.db, 'rooc_rewards', activeTab);
-                await window.updateDoc(rewardDocRef, { queue: rewardQueues[activeTab] });
+                await window.setDoc(rewardDocRef, { queue: rewardQueues[activeTab] }, { merge: true });
             } catch (e) {
                 console.error("Save Error:", e);
             }
@@ -537,7 +545,6 @@
 
                 let pageBadgeHTML = '';
                 if (isCurrentQueue) {
-                    // เฉพาะคนที่ถึงคิว (อยู่ในโควต้า) ถึงจะมีป้ายบอกเลขหน้า/ลำดับโควต้า
                     if (type === 'white') {
                         pageBadgeHTML = `<span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-200 text-slate-900 shrink-0">หน้า ${queueNumber}</span>`;
                     } else if (type === 'red') {
@@ -546,7 +553,6 @@
                         pageBadgeHTML = `<span class="w-7 h-7 flex items-center justify-center text-xs font-bold rounded-full bg-slate-800 text-slate-300 border border-slate-700 shrink-0">${queueNumber}</span>`;
                     }
                 } else {
-                    // คนที่ยังไม่ถึงคิว แสดงเป็นลำดับตัวเลขธรรมดา (ไม่มีป้ายหน้า)
                     pageBadgeHTML = `<span class="w-7 h-7 flex items-center justify-center text-xs font-semibold rounded-full bg-slate-950 text-slate-500 border border-slate-800 shrink-0">${queueNumber}</span>`;
                 }
 
