@@ -193,12 +193,13 @@
             }
         }
 
-        // ฟังก์ชันช่วยอัปเดตลำดับลง Firebase Firestore
-        async function saveOrderToFirestore(itemsToUpdate) {
+        // อัปเดตลำดับทั้งหมดลง Firestore
+        async function saveAllOrderToFirestore() {
             try {
-                for (const item of itemsToUpdate) {
-                    const docRef = window.doc(window.db, "players", item.id);
-                    await window.updateDoc(docRef, { order: item.order });
+                for (let i = 0; i < memberList.length; i++) {
+                    memberList[i].order = i;
+                    const docRef = window.doc(window.db, "players", memberList[i].id);
+                    await window.updateDoc(docRef, { order: i });
                 }
             } catch (e) {
                 console.error("เกิดข้อผิดพลาดในการบันทึกลำดับคิว:", e);
@@ -278,26 +279,28 @@
             renderAll();
         }
 
-        // กดปุ่มขึ้น-ลง เพื่อสลับคิว และบันทึกลง Firestore
+        // 🔄 ฟังก์ชันรันคิว: เมื่อรับรางวัลแล้ว ย้ายไปต่อท้ายสุดของคิว
+        async function completeQueue(index) {
+            const memberName = memberList[index].name;
+            if (confirm(`ยืนยันการให้รางวัลแก่ "${memberName}" ?\n(รายชื่อนี้จะถูกย้ายไปต่อท้ายสุดของคิว)`)) {
+                const completedItem = memberList.splice(index, 1)[0];
+                memberList.push(completedItem); // ย้ายไปต่อท้าย
+                
+                renderAll();
+                await saveAllOrderToFirestore(); // บันทึกลำดับใหม่ทั้งหมดลง Firestore
+            }
+        }
+
+        // กดปุ่มขึ้น-ลง เพื่อสลับคิว
         async function moveQueue(index, direction) {
             const newIndex = index + direction;
             if (newIndex >= 0 && newIndex < memberList.length) {
-                // สลับตำแหน่งในอาเรย์
                 const temp = memberList[index];
                 memberList[index] = memberList[newIndex];
                 memberList[newIndex] = temp;
 
-                // กำหนดลำดับ order ใหม่
-                memberList[index].order = index;
-                memberList[newIndex].order = newIndex;
-
                 renderAll();
-
-                // บันทึกลง Firestore
-                await saveOrderToFirestore([
-                    { id: memberList[index].id, order: index },
-                    { id: memberList[newIndex].id, order: newIndex }
-                ]);
+                await saveAllOrderToFirestore();
             }
         }
 
@@ -306,28 +309,18 @@
             renderAll();
         }
 
-        // กดยอมรับการเปลี่ยนชื่อจาก Dropdown และบันทึกลง Firestore
+        // กดยอมรับการเปลี่ยนชื่อจาก Dropdown
         async function saveEditing(index) {
             const selectEl = document.getElementById(`dropdown-select-${index}`);
             if (selectEl) {
                 const selectedTargetIndex = parseInt(selectEl.value);
                 if (selectedTargetIndex !== index) {
-                    // สลับตำแหน่ง
                     const temp = memberList[index];
                     memberList[index] = memberList[selectedTargetIndex];
                     memberList[selectedTargetIndex] = temp;
 
-                    // อัปเดต order ใหม่
-                    memberList[index].order = index;
-                    memberList[selectedTargetIndex].order = selectedTargetIndex;
-
                     renderAll();
-
-                    // บันทึกลง Firestore
-                    await saveOrderToFirestore([
-                        { id: memberList[index].id, order: index },
-                        { id: memberList[selectedTargetIndex].id, order: selectedTargetIndex }
-                    ]);
+                    await saveAllOrderToFirestore();
                 }
             }
             editingIndex = -1;
@@ -439,7 +432,10 @@
                         `;
                     } else {
                         adminActionButtons = `
-                            <button onclick="startEditing(${index})" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs transition border border-slate-700">
+                            <button onclick="completeQueue(${index})" class="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition border border-emerald-600 flex items-center gap-1 shadow">
+                                ✅ รับรางวัล
+                            </button>
+                            <button onclick="startEditing(${index})" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs transition border border-slate-700">
                                 ✏️ แก้ไข
                             </button>
                             <button onclick="moveQueue(${index}, -1)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-sm text-slate-300 transition border border-slate-800">↑</button>
