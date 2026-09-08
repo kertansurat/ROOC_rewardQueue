@@ -19,17 +19,15 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // ⚠️ วาง firebaseConfig ของคุณตรงนี้ (นำมาจาก Firebase Console > Project Settings)
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyBv_QQ_O8SE88WFTwro2hJJYGDRA4Jdds8",
-  authDomain: "bellona-gvg.firebaseapp.com",
-  projectId: "bellona-gvg",
-  storageBucket: "bellona-gvg.firebasestorage.app",
-  messagingSenderId: "871679564546",
-  appId: "1:871679564546:web:c4b43efd62a2d57f8c001b",
-  measurementId: "G-Q2BHJJJKRP"
-};
+        // Firebase Config ของคุณ bellona-gvg
+        const firebaseConfig = {
+            apiKey: "AIzaSyBv_QQ_O8SE88WFTwro2hJJYGDRA4Jdds8",
+            authDomain: "bellona-gvg.firebaseapp.com",
+            projectId: "bellona-gvg",
+            storageBucket: "bellona-gvg.firebasestorage.app",
+            messagingSenderId: "871679564546",
+            appId: "1:871679564546:web:c4b43efd62a2d57f8c001b",
+            measurementId: "G-Q2BHJJJKRP"
         };
 
         // Initialize Firebase & Firestore
@@ -52,7 +50,7 @@ const firebaseConfig = {
                 </div>
                 <div>
                     <h1 class="text-base sm:text-xl font-bold text-white leading-tight">Guild Queue</h1>
-                    <p class="text-[11px] sm:text-xs text-slate-400">ระบบแสดงลำดับคิวรับของรางวัล</p>
+                    <p class="text-[11px] sm:text-xs text-slate-400">ระบบแสดงลำดับคิวรับของรางวัล (bellona-gvg)</p>
                 </div>
             </div>
 
@@ -173,14 +171,20 @@ const firebaseConfig = {
                 memberList = [];
                 snapshot.forEach((doc) => {
                     const data = doc.data();
-                    const name = data.playerName || data.name || doc.id;
+                    // ดึงชื่อโดยลองตรวจจับฟิลด์ต่างๆ (playername, playerName, name, id)
+                    const name = data.playername || data.playerName || data.name || data.id || doc.id;
                     memberList.push({ id: doc.id, name: name });
                 });
 
+                console.log("ดึงรายชื่อสำเร็จ:", memberList);
                 renderAll();
             }, (error) => {
                 console.error("Firestore Read Error:", error);
-                document.getElementById('active-queue-list').innerHTML = `<div class="text-center text-red-400 py-8">ไม่สามารถอ่านข้อมูลได้ กรุณาตรวจสอบการตั้งค่า Firebase Rules</div>`;
+                document.getElementById('active-queue-list').innerHTML = `
+                    <div class="text-center text-red-400 py-8">
+                        ไม่สามารถอ่านข้อมูลได้: ${error.message}<br>
+                        <span class="text-xs text-slate-500">กรุณาตรวจสอบ Firestore Rules ใน Firebase Console</span>
+                    </div>`;
             });
         }
 
