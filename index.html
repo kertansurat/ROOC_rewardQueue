@@ -202,7 +202,6 @@
                     snapshot.forEach((docSnap) => {
                         const data = docSnap.data();
                         const pName = data.name || data.discordDisplayName || data.discordUsername || docSnap.id;
-                        // ตัดชื่ออาชีพออก เหลือเฉพาะชื่อหลัก
                         masterPlayerList.push({ id: docSnap.id, name: pName });
                     });
 
@@ -480,14 +479,12 @@
                 else text += `${index + 1}. ${item.name}\n`;
             });
 
-            // หมวดที่ 2: รายชื่อรอคิวถัดไป
+            // หมวดที่ 2: รายชื่อรอคิวถัดไป (ไม่มีเลขหน้า)
             if (waitingList.length > 0) {
                 text += `\n⏳ **รายชื่อรอคิวถัดไป (${waitingList.length} ท่าน)**\n------------------------------\n`;
                 waitingList.forEach((item, index) => {
                     const realIndex = quotaMax + index + 1;
-                    if (type === 'white') text += `${realIndex}. ${item.name} (หน้า ${realIndex})\n`;
-                    else if (type === 'red') text += `${realIndex}. ${item.name} (หน้า ${config.whiteMax + realIndex})\n`;
-                    else text += `${realIndex}. ${item.name}\n`;
+                    text += `${realIndex}. ${item.name}\n`;
                 });
             }
 
@@ -534,17 +531,23 @@
             currentList.forEach((item, index) => {
                 const card = document.createElement('div');
                 const isCurrentQueue = index < quotaMax;
-                const pageNum = index + 1;
+                const queueNumber = index + 1;
                 const isEditingThis = (editingIndex === index);
                 const hasReceived = item.received === true;
 
                 let pageBadgeHTML = '';
-                if (type === 'white') {
-                    pageBadgeHTML = `<span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-200 text-slate-900 shrink-0">หน้า ${pageNum}</span>`;
-                } else if (type === 'red') {
-                    pageBadgeHTML = `<span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-950 text-red-300 border border-red-800/60 shrink-0">หน้า ${config.whiteMax + pageNum}</span>`;
+                if (isCurrentQueue) {
+                    // เฉพาะคนที่ถึงคิว (อยู่ในโควต้า) ถึงจะมีป้ายบอกเลขหน้า/ลำดับโควต้า
+                    if (type === 'white') {
+                        pageBadgeHTML = `<span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-200 text-slate-900 shrink-0">หน้า ${queueNumber}</span>`;
+                    } else if (type === 'red') {
+                        pageBadgeHTML = `<span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-950 text-red-300 border border-red-800/60 shrink-0">หน้า ${config.whiteMax + queueNumber}</span>`;
+                    } else {
+                        pageBadgeHTML = `<span class="w-7 h-7 flex items-center justify-center text-xs font-bold rounded-full bg-slate-800 text-slate-300 border border-slate-700 shrink-0">${queueNumber}</span>`;
+                    }
                 } else {
-                    pageBadgeHTML = `<span class="w-7 h-7 flex items-center justify-center text-xs font-bold rounded-full bg-slate-800 text-slate-300 border border-slate-700 shrink-0">${pageNum}</span>`;
+                    // คนที่ยังไม่ถึงคิว แสดงเป็นลำดับตัวเลขธรรมดา (ไม่มีป้ายหน้า)
+                    pageBadgeHTML = `<span class="w-7 h-7 flex items-center justify-center text-xs font-semibold rounded-full bg-slate-950 text-slate-500 border border-slate-800 shrink-0">${queueNumber}</span>`;
                 }
 
                 card.className = `p-3 sm:p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition ${
