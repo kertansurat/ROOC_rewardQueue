@@ -62,12 +62,19 @@
 
     <main class="max-w-5xl mx-auto px-3 sm:px-6 mt-4 space-y-4">
 
-        <!-- Control Panel สำหรับปรับโควต้า -->
-        <div id="admin-panel-container" class="hidden bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl">
-            <h2 class="text-xs sm:text-sm font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span>⚙️</span> ตั้งค่าจำนวนโควต้าของรางวัล
-            </h2>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <!-- Control Panel สำหรับปรับโควต้าและรีเซ็ตคิวรอบใหญ่ -->
+        <div id="admin-panel-container" class="hidden bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+            <div class="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-2">
+                <h2 class="text-xs sm:text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <span>⚙️</span> ตั้งค่าจำนวนโควต้าของรางวัลและการจัดการคิว
+                </h2>
+                <!-- ปุ่มรีเซ็ตคิวรอบใหญ่ (เมื่อทุกคนได้รางวัลครบแล้ว) -->
+                <button onclick="resetAllQueueStatus()" class="bg-red-950 hover:bg-red-900 text-red-300 border border-red-800/60 text-xs font-semibold px-3 py-1.5 rounded-xl transition flex items-center gap-1 shadow">
+                    <span>🔄</span> รีเซ็ตสถานะรับรางวัลทั้งหมด (เริ่มรอบใหม่)
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
                 <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                     <label class="block text-xs font-semibold text-slate-200 mb-1">🕊️ ขนขาว</label>
                     <div class="flex items-center gap-1">
@@ -176,11 +183,12 @@
                         tempArr.push({ 
                             id: docSnap.id, 
                             name: `${pName}${pJob}`,
-                            order: typeof data.order === 'number' ? data.order : 999
+                            order: typeof data.order === 'number' ? data.order : 999,
+                            received: data.received === true // สถานะการรับรางวัล
                         });
                     });
 
-                    // เรียงลำดับตามออเดอร์ที่บันทึกไว้ใน Firestore
+                    // เรียงลำดับตาม order
                     tempArr.sort((a, b) => a.order - b.order);
                     memberList = tempArr;
 
@@ -193,7 +201,21 @@
             }
         }
 
-        // อัปเดตลำดับทั้งหมดลง Firestore
+        // อัปเดตข้อมูลผู้เล่นรายคนลง Firestore
+        async function updatePlayerFirestore(index) {
+            try {
+                const item = memberList[index];
+                const docRef = window.doc(window.db, "players", item.id);
+                await window.updateDoc(docRef, { 
+                    order: item.order,
+                    received: item.received 
+                });
+            } catch (e) {
+                console.error("เกิดข้อผิดพลาดในการบันทึกข้อมูล:", e);
+            }
+        }
+
+        // บันทึกลำดับทั้งหมดลง Firestore
         async function saveAllOrderToFirestore() {
             try {
                 for (let i = 0; i < memberList.length; i++) {
@@ -261,7 +283,7 @@
         function updateAdminUI() {
             document.getElementById('admin-text').innerText = isAdmin ? 'โหมดปรับแต่ง (Admin)' : 'โหมดผู้ดู (Read-only)';
             document.getElementById('admin-icon').innerText = isAdmin ? '🔓' : '🔒';
-            document.getElementById('admin-panel-container').className = isAdmin ? 'bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl' : 'hidden';
+            document.getElementById('admin-panel-container').className = isAdmin ? 'bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3' : 'hidden';
             renderAll();
         }
 
@@ -279,15 +301,38 @@
             renderAll();
         }
 
-        // 🔄 ฟังก์ชันรันคิว: เมื่อรับรางวัลแล้ว ย้ายไปต่อท้ายสุดของคิว
+        // 🔄 ฟังก์ชันรีเซ็ตสถานะรับรางวัลทั้งหมด (เมื่อทุกคนได้รางวัลครบทุกรอบแล้ว เริ่มรอบใหม่)
+        async function resetAllQueueStatus() {
+            if (confirm('⚠️ คุณต้องการรีเซ็ตสถานะการรับรางวัลของทุกคนให้กลับเป็น "ยังไม่ได้รับ" ทั้งหมดหรือไม่?')) {
+                for (let i = 0; i < memberList.length; i++) {
+                    memberList[i].received = false;
+                    const docRef = window.doc(window.db, "players", memberList[i].id);
+                    await window.updateDoc(docRef, { received: false });
+                }
+                renderAll();
+                alert('รีเซ็ตสถานะทั้งหมดสำเร็จ เริ่มรอบใหม่เรียบร้อย!');
+            }
+        }
+
+        // 🔄 ฟังก์ชันสลับสถานะรับรางวัล / ยกเลิกกรณีแอดมินกดผิด
+        async function toggleReceivedStatus(index) {
+            const item = memberList[index];
+            item.received = !item.received; // สลับสถานะ (ถ้าได้แล้ว เป็นยังไม่ได้ / ถ้ายัง เป็นได้แล้ว)
+            
+            renderAll();
+            await updatePlayerFirestore(index);
+        }
+
+        // กดปุ่มรันคิวปกติ: ย้ายคนนี้ไปต่อท้ายสุด
         async function completeQueue(index) {
             const memberName = memberList[index].name;
             if (confirm(`ยืนยันการให้รางวัลแก่ "${memberName}" ?\n(รายชื่อนี้จะถูกย้ายไปต่อท้ายสุดของคิว)`)) {
+                memberList[index].received = true; // ตั้งค่าว่าได้รับแล้ว
                 const completedItem = memberList.splice(index, 1)[0];
                 memberList.push(completedItem); // ย้ายไปต่อท้าย
                 
                 renderAll();
-                await saveAllOrderToFirestore(); // บันทึกลำดับใหม่ทั้งหมดลง Firestore
+                await saveAllOrderToFirestore();
             }
         }
 
@@ -397,9 +442,9 @@
                 }
 
                 card.className = `p-3 sm:p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition ${
-                    isCurrentQueue 
-                        ? 'bg-emerald-950/25 border-emerald-500/40 shadow-sm' 
-                        : 'bg-slate-950/80 border-slate-800'
+                    item.received 
+                        ? 'bg-slate-900/40 border-slate-800/50 opacity-60' 
+                        : (isCurrentQueue ? 'bg-emerald-950/25 border-emerald-500/40 shadow-sm' : 'bg-slate-950/80 border-slate-800')
                 }`;
 
                 let nameAreaHTML = '';
@@ -414,10 +459,17 @@
                         </select>
                     `;
                 } else {
+                    let statusBadge = '';
+                    if (item.received) {
+                        statusBadge = `<span class="text-[10px] font-normal bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">ได้รับรางวัลแล้ว (รอบนี้)</span>`;
+                    } else if (isCurrentQueue) {
+                        statusBadge = `<span class="text-[10px] font-normal bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/40">ถึงคิวแล้ว</span>`;
+                    }
+
                     nameAreaHTML = `
                         <div class="text-sm sm:text-base font-semibold text-slate-100 break-all flex items-center gap-2 flex-wrap">
-                            <span>${item.name}</span>
-                            ${isCurrentQueue ? '<span class="text-[10px] font-normal bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/40">ถึงคิวแล้ว</span>' : ''}
+                            <span class="${item.received ? 'line-through text-slate-400' : ''}">${item.name}</span>
+                            ${statusBadge}
                         </div>
                     `;
                 }
@@ -431,10 +483,17 @@
                             </button>
                         `;
                     } else {
+                        // เพิ่มปุ่มแก้สถานะ (กรณีแอดมินกดผิด อยากเปลี่ยนสถานะกลับเป็นยังไม่ได้รับ หรือติ๊กรับเอง)
+                        let toggleBtnText = item.received ? '↩️ ยังไม่ได้รับ' : '✅ รับรางวัล';
+                        let toggleBtnClass = item.received 
+                            ? 'bg-amber-800/80 hover:bg-amber-700 text-amber-200 border-amber-700' 
+                            : 'bg-emerald-700 hover:bg-emerald-600 text-white border-emerald-600';
+
                         adminActionButtons = `
-                            <button onclick="completeQueue(${index})" class="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition border border-emerald-600 flex items-center gap-1 shadow">
-                                ✅ รับรางวัล
+                            <button onclick="${item.received ? `toggleReceivedStatus(${index})` : `completeQueue(${index})`}" class="px-2.5 py-1 ${toggleBtnClass} rounded-lg text-xs font-bold transition border flex items-center gap-1 shadow">
+                                ${toggleBtnText}
                             </button>
+                            ${item.received ? `<button onclick="toggleReceivedStatus(${index})" title="สลับสถานะกลับ" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs border border-slate-700">แก้สถานะ</button>` : ''}
                             <button onclick="startEditing(${index})" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs transition border border-slate-700">
                                 ✏️ แก้ไข
                             </button>
