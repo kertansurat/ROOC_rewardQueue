@@ -170,13 +170,10 @@
             }, 100);
         });
 
-        // โหลดข้อมูลและซิงค์รายชื่อจาก collection 'players' เข้ามาที่ collection 'rooc_rewards'
         async function initRoocRewardSystem() {
             try {
-                // 1. ดึงรายชื่อหลักจาก players
                 const playersRef = window.collection(window.db, 'players');
                 
-                // ใช้ onSnapshot เพื่อให้ข้อมูลอัปเดตอัตโนมัติหากมีการเพิ่ม/ลบสมาชิกในเว็บหลัก
                 window.onSnapshot(playersRef, async (snapshot) => {
                     let masterPlayers = [];
                     snapshot.forEach((docSnap) => {
@@ -186,7 +183,6 @@
                         masterPlayers.push({ id: docSnap.id, name: `${pName}${pJob}` });
                     });
 
-                    // 2. ดึงข้อมูลคิวแยกแต่ละหมวดจาก collection 'rooc_rewards'
                     const categories = ['white', 'red', 'card', 'chest'];
                     for (const cat of categories) {
                         const rewardDocRef = window.doc(window.db, 'rooc_rewards', cat);
@@ -195,28 +191,35 @@
                         if (rewardSnap.exists()) {
                             let savedQueue = rewardSnap.data().queue || [];
                             
-                            // ตรวจสอบว่ามีสมาชิกใหม่เพิ่มเข้ามาในเว็บหลักหรือไม่ ถ้ามีให้เติมต่อท้ายสุด
                             const existingIds = new Set(savedQueue.map(item => item.id));
                             masterPlayers.forEach(mp => {
                                 if (!existingIds.has(mp.id)) {
-                                    savedQueue.push({ id: mp.id, name: mp.name, received: false });
+                                    savedQueue.push({ 
+                                        id: mp.id, 
+                                        name: mp.name, 
+                                        received: false, 
+                                        originalIndex: savedQueue.length 
+                                    });
                                 }
                             });
 
-                            // กรองเอาชื่อที่ถูกลบออกจากเว็บหลักออกด้วย
                             const masterIds = new Set(masterPlayers.map(mp => mp.id));
                             savedQueue = savedQueue.filter(item => masterIds.has(item.id));
 
-                            // อัปเดตชื่อให้ตรงกับเว็บหลักเสมอ (กรณีเปลี่ยนชื่อ)
                             const nameMap = new Map(masterPlayers.map(mp => [mp.id, mp.name]));
                             savedQueue.forEach(item => {
                                 if (nameMap.has(item.id)) item.name = nameMap.get(item.id);
+                                if (typeof item.originalIndex !== 'number') item.originalIndex = 0;
                             });
 
                             rewardQueues[cat] = savedQueue;
                         } else {
-                            // ถ้ายังไม่มีข้อมูลใน rooc_rewards ให้สร้างใหม่ทั้งหมด
-                            const initialQueue = masterPlayers.map(mp => ({ id: mp.id, name: mp.name, received: false }));
+                            const initialQueue = masterPlayers.map((mp, idx) => ({ 
+                                id: mp.id, 
+                                name: mp.name, 
+                                received: false, 
+                                originalIndex: idx 
+                            }));
                             rewardQueues[cat] = initialQueue;
                             await window.setDoc(rewardDocRef, { queue: initialQueue });
                         }
@@ -230,7 +233,6 @@
             }
         }
 
-        // บันทึกคิวปัจจุบันของหมวด activeTab ลง Firestore แยกอิสระ
         async function saveCurrentQueueToFirestore() {
             try {
                 const rewardDocRef = window.doc(window.db, 'rooc_rewards', activeTab);
@@ -324,18 +326,20 @@
             renderAll();
         }
 
-        // 🔄 รีเซ็ตสถานะรับรางวัลเฉพาะหมวดนี้เท่านั้น (ไม่กระทบหมวดอื่น)
         async function resetCurrentCategory() {
             const titles = { white: 'ขนขาว', red: 'ขนแดง', card: 'สมุดการ์ด', chest: 'เศษทอง' };
             if (confirm(`⚠️ คุณต้องการรีเซ็ตสถานะการรับรางวัลและลำดับของหมวด "${titles[activeTab]}" ทั้งหมดหรือไม่?`)) {
-                rewardQueues[activeTab].forEach(item => item.received = false);
+                rewardQueues[activeTab].forEach((item, idx) => {
+                    item.received = false;
+                    item.originalIndex = idx;
+                });
                 renderAll();
                 await saveCurrentQueueToFirestore();
                 alert(`รีเซ็ตหมวด ${titles[activeTab]} สำเร็จ!`);
             }
         }
 
-        // 🔄 สลับสถานะรับรางวัล / ยกเลิก ของแต่ละคนแยกอิสระ
+        // 🔘 ปุ่มสลับสถานะรับรางวัล (แยกอิสระ ไม่รันคิวอัตโนมัติ)
         async function toggleReceivedStatus(index) {
             const currentList = rewardQueues[activeTab];
             currentList[index].received = !currentList[index].received;
@@ -344,15 +348,15 @@
             await saveCurrentQueueToFirestore();
         }
 
-        // ✅ ยอมรับรางวัล: ทำเครื่องหมายว่าได้รับแล้ว และย้ายรายชื่อไปต่อท้ายสุดของคิวหมวดนี้ทันที
+        // ✅ ปุ่มรันคิว: ยอมรับรางวัลและย้ายไปต่อท้ายสุด (บันทึกตำแหน่ง originalIndex เดิมไว้เผื่อกดยกเลิก)
         async function completeQueue(index) {
             const currentList = rewardQueues[activeTab];
-            const memberName = currentList[index].name;
+            const item = currentList[index];
 
-            if (confirm(`ยืนยันการให้รางวัลแก่ "${memberName}" ในหมวดนี้?\n(รายชื่อจะถูกบันทึกว่าได้รับและย้ายไปต่อท้ายสุดของคิว)`)) {
-                currentList[index].received = true;
+            if (confirm(`ยืนยันการให้รางวัลแก่ "${item.name}" ?\n(รายชื่อจะถูกบันทึกว่าได้รับและย้ายไปต่อท้ายสุดของคิว)`)) {
+                item.received = true;
+                item.originalIndex = index; // จำตำแหน่งเดิมไว้
 
-                // ตัดออกแล้วย้ายไปต่อท้ายสุด
                 const completedItem = currentList.splice(index, 1)[0];
                 currentList.push(completedItem);
 
@@ -361,7 +365,29 @@
             }
         }
 
-        // เลื่อนคิวขึ้น-ลง (เฉพาะหมวดนี้)
+        // ↩️ ปุ่มยกเลิกสถานะและดึงคิวกลับตำแหน่งเดิม
+        async function cancelQueueAndRevert(index) {
+            const currentList = rewardQueues[activeTab];
+            const item = currentList[index];
+
+            if (confirm(`ต้องการยกเลิกสถานะและดึง "${item.name}" กลับไปตำแหน่งเดิมหรือไม่?`)) {
+                item.received = false;
+
+                // ดึงออกจากตำแหน่งปัจจุบัน
+                currentList.splice(index, 1);
+
+                // นำกลับไปแทรกที่ตำแหน่ง originalIndex เดิม (ป้องกันเกินขอบเขตอาเรย์)
+                let targetPos = typeof item.originalIndex === 'number' ? item.originalIndex : currentList.length;
+                if (targetPos > currentList.length) targetPos = currentList.length;
+                if (targetPos < 0) targetPos = 0;
+
+                currentList.splice(targetPos, 0, item);
+
+                renderAll();
+                await saveCurrentQueueToFirestore();
+            }
+        }
+
         async function moveQueue(index, direction) {
             const currentList = rewardQueues[activeTab];
             const newIndex = index + direction;
@@ -369,6 +395,9 @@
                 const temp = currentList[index];
                 currentList[index] = currentList[newIndex];
                 currentList[newIndex] = temp;
+
+                // อัปเดต originalIndex ใหม่ตามลำดับปัจจุบันด้วย
+                currentList.forEach((m, idx) => { m.originalIndex = idx; });
 
                 renderAll();
                 await saveCurrentQueueToFirestore();
@@ -380,7 +409,6 @@
             renderAll();
         }
 
-        // เปลี่ยนตำแหน่งผ่าน Dropdown (เฉพาะหมวดนี้)
         async function saveEditing(index) {
             const selectEl = document.getElementById(`dropdown-select-${index}`);
             if (selectEl) {
@@ -390,6 +418,8 @@
                     const temp = currentList[index];
                     currentList[index] = currentList[selectedTargetIndex];
                     currentList[selectedTargetIndex] = temp;
+
+                    currentList.forEach((m, idx) => { m.originalIndex = idx; });
 
                     renderAll();
                     await saveCurrentQueueToFirestore();
@@ -471,10 +501,11 @@
                     pageBadgeHTML = `<span class="w-7 h-7 flex items-center justify-center text-xs font-bold rounded-full bg-slate-800 text-slate-300 border border-slate-700 shrink-0">${pageNum}</span>`;
                 }
 
+                // ปรับกรอบคนถึงคิวแล้วให้เป็น "สีเขียว" ตามที่ขอ
                 card.className = `p-3 sm:p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition ${
                     hasReceived 
                         ? 'bg-slate-900/40 border-slate-800/50 opacity-60' 
-                        : (isCurrentQueue ? 'bg-amber-950/20 border-amber-500/40 shadow-sm' : 'bg-slate-950/80 border-slate-800')
+                        : (isCurrentQueue ? 'bg-emerald-950/25 border-emerald-500/40 shadow-sm' : 'bg-slate-950/80 border-slate-800')
                 }`;
 
                 let nameAreaHTML = '';
@@ -484,7 +515,7 @@
                         optionsHTML += `<option value="${idx}" ${idx === index ? 'selected' : ''}>${m.name}</option>`;
                     });
                     nameAreaHTML = `
-                        <select id="dropdown-select-${index}" class="bg-slate-900 border border-amber-500 text-white text-sm rounded-lg px-2.5 py-1.5 focus:outline-none max-w-xs sm:max-w-md">
+                        <select id="dropdown-select-${index}" class="bg-slate-900 border border-emerald-500 text-white text-sm rounded-lg px-2.5 py-1.5 focus:outline-none max-w-xs sm:max-w-md">
                             ${optionsHTML}
                         </select>
                     `;
@@ -493,7 +524,7 @@
                     if (hasReceived) {
                         statusBadge = `<span class="text-[10px] font-normal bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">รับแล้ว</span>`;
                     } else if (isCurrentQueue) {
-                        statusBadge = `<span class="text-[10px] font-normal bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded border border-amber-500/40">ถึงคิวแล้ว</span>`;
+                        statusBadge = `<span class="text-[10px] font-normal bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/40">ถึงคิวแล้ว</span>`;
                     }
 
                     nameAreaHTML = `
@@ -509,23 +540,28 @@
                     if (isEditingThis) {
                         adminActionButtons = `
                             <button onclick="saveEditing(${index})" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow">
-                                ✓ ยอมรับ
+                                ✓ บันทึก
                             </button>
                         `;
                     } else {
-                        let mainBtnText = hasReceived ? '↩️ ยกเลิกสถานะ' : '✅ รับรางวัล';
-                        let mainBtnAction = hasReceived ? `toggleReceivedStatus(${index})` : `completeQueue(${index})`;
-                        let mainBtnClass = hasReceived 
-                            ? 'bg-amber-900/80 hover:bg-amber-800 text-amber-200 border-amber-700' 
-                            : 'bg-emerald-700 hover:bg-emerald-600 text-white border-emerald-600';
+                        // แยกปุ่มสถานะ (ติ๊กรับ/ไม่รับ) ออกจากปุ่มยอมรับรางวัล (รันคิว)
+                        let statusToggleBtn = hasReceived
+                            ? `<button onclick="toggleReceivedStatus(${index})" class="px-2.5 py-1 bg-amber-900/80 hover:bg-amber-700 text-amber-200 border border-amber-700 rounded-lg text-xs font-bold transition shadow">✅ รับแล้ว</button>`
+                            : `<button onclick="toggleReceivedStatus(${index})" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs transition shadow">⏳ ยังไม่รับ</button>`;
+
+                        let actionBtn = '';
+                        if (hasReceived) {
+                            // ถ้าได้รับแล้ว มีปุ่มยกเลิกสถานะและดึงคิวกลับตำแหน่งเดิม
+                            actionBtn = `<button onclick="cancelQueueAndRevert(${index})" class="px-2.5 py-1 bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-700 rounded-lg text-xs font-bold transition shadow">↩️ ยกเลิกคิว</button>`;
+                        } else {
+                            // ถ้ายังไม่ได้รับ มีปุ่มยอมรับรางวัล (รันคิวไปต่อท้ายสุด)
+                            actionBtn = `<button onclick="completeQueue(${index})" class="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-600 rounded-lg text-xs font-bold transition shadow">✅ ยอมรับรางวัล</button>`;
+                        }
 
                         adminActionButtons = `
-                            <button onclick="${mainBtnAction}" class="px-2.5 py-1 ${mainBtnClass} rounded-lg text-xs font-bold transition border flex items-center gap-1 shadow">
-                                ${mainBtnText}
-                            </button>
-                            <button onclick="startEditing(${index})" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs transition border border-slate-700">
-                                ✏️ แก้ไข
-                            </button>
+                            ${statusToggleBtn}
+                            ${actionBtn}
+                            <button onclick="startEditing(${index})" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs transition border border-slate-700">🔄 สลับ</button>
                             <button onclick="moveQueue(${index}, -1)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-sm text-slate-300 transition border border-slate-800">↑</button>
                             <button onclick="moveQueue(${index}, 1)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg text-sm text-slate-300 transition border border-slate-800">↓</button>
                         `;
@@ -541,7 +577,7 @@
                     </div>
 
                     ${isAdmin ? `
-                        <div class="flex items-center gap-1.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/80 justify-end shrink-0">
+                        <div class="flex items-center gap-1.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/80 justify-end shrink-0 flex-wrap">
                             ${adminActionButtons}
                         </div>
                     ` : ''}
