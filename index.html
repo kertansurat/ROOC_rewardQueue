@@ -401,14 +401,40 @@
 
         async function executeReset(mode) {
             closeResetModal();
-            let newQueue = masterPlayerList.map(mp => ({
-                id: mp.id,
-                name: mp.name,
-                received: false,
-                originalIndex: 0
-            }));
+            const targetTab = activeTab;
+            let newQueue;
 
-            if (mode === 'random') {
+            if (mode === 'ordered') {
+                // เรียงตามลำดับคิวที่บันทึกไว้ ณ ปัจจุบัน (ไม่ใช้ลำดับจาก players collection)
+                const currentQueue = rewardQueues[targetTab] || [];
+                const masterMap = new Map(masterPlayerList.map(mp => [mp.id, mp]));
+                const usedIds = new Set();
+                newQueue = [];
+
+                currentQueue.forEach(item => {
+                    const mp = masterMap.get(item.id);
+                    if (mp && !usedIds.has(item.id)) {
+                        usedIds.add(item.id);
+                        newQueue.push({ id: mp.id, name: mp.name, received: false, originalIndex: 0 });
+                    }
+                });
+
+                // สมาชิกที่ยังไม่อยู่ในคิว (เช่นเพิ่งเข้ากิลด์) ต่อท้าย
+                masterPlayerList.forEach(mp => {
+                    if (!usedIds.has(mp.id)) {
+                        usedIds.add(mp.id);
+                        newQueue.push({ id: mp.id, name: mp.name, received: false, originalIndex: 0 });
+                    }
+                });
+            } else {
+                newQueue = masterPlayerList.map(mp => ({
+                    id: mp.id,
+                    name: mp.name,
+                    received: false,
+                    originalIndex: 0
+                }));
+
+                // สุ่มรายชื่อใหม่ทั้งหมด
                 for (let i = newQueue.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [newQueue[i], newQueue[j]] = [newQueue[j], newQueue[i]];
@@ -417,11 +443,11 @@
 
             newQueue.forEach((item, idx) => { item.originalIndex = idx; });
 
-            rewardQueues[activeTab] = newQueue;
+            rewardQueues[targetTab] = newQueue;
             renderAll();
-            
+
             // บันทึกลง Firestore ทันทีเมื่อรีเซ็ต
-            const rewardDocRef = window.doc(window.db, 'rooc_rewards', activeTab);
+            const rewardDocRef = window.doc(window.db, 'rooc_rewards', targetTab);
             await window.setDoc(rewardDocRef, { queue: newQueue }, { merge: true });
             showToast("รีเซ็ตคิวหมวดนี้สำเร็จ!");
         }
@@ -488,14 +514,13 @@
             const currentList = rewardQueues[activeTab];
             const item = currentList[index];
 
+            // ยกเลิกสถานะ "รับแล้ว" และย้ายรายชื่อนี้ไปต่อท้ายสุดของคิว
             item.received = false;
             currentList.splice(index, 1);
+            currentList.push(item);
 
-            let targetPos = typeof item.originalIndex === 'number' ? item.originalIndex : currentList.length;
-            if (targetPos > currentList.length) targetPos = currentList.length;
-            if (targetPos < 0) targetPos = 0;
-
-            currentList.splice(targetPos, 0, item);
+            // อัปเดตลำดับให้ตรงกับตำแหน่งปัจจุบัน
+            currentList.forEach((m, idx) => { m.originalIndex = idx; });
 
             renderAll();
             await saveQueueToFirestoreSilent();
