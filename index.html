@@ -174,7 +174,7 @@
                     <span>🎲</span> สุ่มรายชื่อใหม่ทั้งหมด
                 </button>
                 <button onclick="executeReset('ordered')" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow">
-                    <span>🔄</span> เรียงตามลำดับปัจจุบัน (เคลียร์สถานะรับแล้ว)
+                    <span>🔄</span> เรียงตามลำดับเดิม
                 </button>
                 <button onclick="closeResetModal()" class="w-full py-2 bg-transparent text-slate-400 hover:text-white rounded-xl text-xs transition">
                     ยกเลิก
@@ -250,7 +250,7 @@
                             const savedMap = new Map(savedQueue.map(item => [item.id, item]));
                             let mergedQueue = [];
 
-                            // คงลำดับเดิมที่บันทึกไว้ในคิว
+                            // คงลำดับเดิมที่บันทึกไว้
                             savedQueue.forEach(item => {
                                 const foundMaster = masterPlayerList.find(mp => mp.id === item.id);
                                 if (foundMaster) {
@@ -401,39 +401,18 @@
 
         async function executeReset(mode) {
             closeResetModal();
-            let currentList = rewardQueues[activeTab] || [];
-            let newQueue = [];
+            let newQueue = masterPlayerList.map(mp => ({
+                id: mp.id,
+                name: mp.name,
+                received: false,
+                originalIndex: 0
+            }));
 
             if (mode === 'random') {
-                newQueue = masterPlayerList.map(mp => ({
-                    id: mp.id,
-                    name: mp.name,
-                    received: false,
-                    originalIndex: 0
-                }));
                 for (let i = newQueue.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [newQueue[i], newQueue[j]] = [newQueue[j], newQueue[i]];
                 }
-            } else {
-                // โหมดเรียงตามลำดับปัจจุบัน: คงลำดับคิวเดิมบนเว็บเป๊ะ ๆ แต่เคลียร์สถานะ received ให้เป็น false ทั้งหมด
-                newQueue = currentList.map(item => ({
-                    ...item,
-                    received: false
-                }));
-
-                // เผื่อมีผู้เล่นใหม่ที่ยังไม่อยู่ใน list ปัจจุบัน ให้ต่อท้าย
-                const existingIds = new Set(newQueue.map(item => item.id));
-                masterPlayerList.forEach(mp => {
-                    if (!existingIds.has(mp.id)) {
-                        newQueue.push({
-                            id: mp.id,
-                            name: mp.name,
-                            received: false,
-                            originalIndex: newQueue.length
-                        });
-                    }
-                });
             }
 
             newQueue.forEach((item, idx) => { item.originalIndex = idx; });
@@ -509,12 +488,14 @@
             const currentList = rewardQueues[activeTab];
             const item = currentList[index];
 
-            // เปลี่ยนสถานะเป็นยังไม่ได้รับ และย้ายไปต่อท้ายสุดทันที
             item.received = false;
             currentList.splice(index, 1);
-            currentList.push(item);
 
-            currentList.forEach((m, idx) => { m.originalIndex = idx; });
+            let targetPos = typeof item.originalIndex === 'number' ? item.originalIndex : currentList.length;
+            if (targetPos > currentList.length) targetPos = currentList.length;
+            if (targetPos < 0) targetPos = 0;
+
+            currentList.splice(targetPos, 0, item);
 
             renderAll();
             await saveQueueToFirestoreSilent();
@@ -588,14 +569,14 @@
             activeList.forEach((item, index) => {
                 if (type === 'white') text += `${index + 1}. ${item.name} (หน้า ${index + 1})\n`;
                 else if (type === 'red') text += `${index + 1}. ${item.name} (หน้า ${config.whiteMax + index + 1})\n`;
-                else text += `${index + 1}.${item.name}\n`;
+                else text += `${index + 1}. ${item.name}\n`;
             });
 
             if (waitingList.length > 0) {
                 text += `\n⏳ **รายชื่อรอคิวถัดไป (${waitingList.length} ท่าน)**\n------------------------------\n`;
                 waitingList.forEach((item, index) => {
                     const realIndex = quotaMax + index + 1;
-                    text += `${realIndex}.${item.name}\n`;
+                    text += `${realIndex}. ${item.name}\n`;
                 });
             }
 
@@ -615,7 +596,7 @@
             const titles = { white: '🕊️ คิวขนขาว', red: '🪶 คิวขนแดง', card: '📘 คิวสมุดการ์ด', chest: '📦 คิวเศษทอง' };
             const subTitles = {
                 white: `โควต้า: ${config.whiteMax} หน้า (หน้า 1 – ${config.whiteMax})`,
-                red: `โควต้า: ${config.redMax} หน้า (หน้า ${config.whiteMax + 1} –${config.whiteMax + config.redMax})`,
+                red: `โควต้า: ${config.redMax} หน้า (หน้า ${config.whiteMax + 1} – ${config.whiteMax + config.redMax})`,
                 card: `โควต้า: ${config.cardQuota} เล่ม`,
                 chest: `โควต้า: ${config.chestQuota} ชิ้น`
             };
@@ -686,7 +667,8 @@
 
                     nameAreaHTML = `
                         <div class="text-sm sm:text-base font-semibold text-slate-100 break-all flex items-center gap-2 flex-wrap">
-                            <span class="${hasReceived ? 'line-through text-slate-400' : ''}">${item.name}</span>${statusBadge}
+                            <span class="${hasReceived ? 'line-through text-slate-400' : ''}">${item.name}</span>
+                            ${statusBadge}
                         </div>
                     `;
                 }
